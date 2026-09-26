@@ -1,53 +1,28 @@
-let mensaje: string = "¡Hola, Bienvenido";
-console.log(mensaje);
-
-export enum EstadoTarea {
-  PENDIENTE = "Pendiente",
-  EN_CURSO = "En Curso",
-  TERMINADA = "Terminada",
-  CANCELADA = "Cancelada"
-}
-
-export enum DificultadTarea {
-  FACIL = 1,
-  MEDIO = 2,
-  DIFÍCIL = 3
-}
-
-export interface Tarea {
-  id: number;
-  titulo: string;               // No vacío, hasta 100 caracteres
-  descripcion?: string;          // Opcional, hasta 500 caracteres
-  estado: EstadoTarea;          // Por defecto: Pendiente
-  creacion: Date;               // Automática al crear
-  ultimaEdicion: Date;          // Inicialmente igual a fecha de creación
-  vencimiento?: Date;           // Opcional
-  dificultad: DificultadTarea;  // Por defecto: Fácil (1)
-}
-
 import promptSync from 'prompt-sync';
+import { EstadoTarea, DificultadTarea, Tarea } from './types';
+import { 
+  crearTarea, 
+  obtenerTodasLasTareas, 
+  obtenerTareasPorEstado, 
+  buscarTareasPorTitulo, 
+  obtenerTareaPorId, 
+  cambiarEstadoTarea
+} from './taskService';
+
 const prompt = promptSync({ sigint: true });
 
-// Repositorio en memoria
-const tareas: Tarea[] = [];
-let proximoId = 1;
-
-const pedirTexto = (pregunta: string): string => {
+function pedirTexto(pregunta: string): string {
   return prompt(pregunta) || "";
-};
+}
 
-// Formateador para la dificultad en emojis
-const obtenerDificultadEmoji = (dificultad: DificultadTarea): string => {
+function obtenerDificultadEmoji(dificultad: DificultadTarea): string {
   switch (dificultad) {
     case DificultadTarea.FACIL: return "⭐ (Fácil)";
     case DificultadTarea.MEDIO: return "⭐⭐ (Medio)";
     case DificultadTarea.DIFÍCIL: return "⭐⭐⭐ (Difícil)";
   }
-};
+}
 
-// ==========================================
-// 1. MENÚ PRINCIPAL
-// ==========================================
 export function menuPrincipal(): void {
   console.clear();
   console.log("====================================");
@@ -62,18 +37,10 @@ export function menuPrincipal(): void {
   const opcion = pedirTexto("> Selecciona una opción: ");
 
   switch (opcion.trim()) {
-    case "1":
-      menuVerMisTareas();
-      break;
-    case "2":
-      menuBuscarTarea();
-      break;
-    case "3":
-      agregarTarea();
-      break;
-    case "0":
-      console.log("\n¡Hasta luego!");
-      return;
+    case "1": menuVerMisTareas(); break;
+    case "2": menuBuscarTarea(); break;
+    case "3": agregarTarea(); break;
+    case "0": console.log("\n¡Hasta luego!"); return;
     default:
       pedirTexto("\n❌ Opción inválida. Presiona ENTER para intentar nuevamente.");
       menuPrincipal();
@@ -81,9 +48,6 @@ export function menuPrincipal(): void {
   }
 }
 
-// ==========================================
-// 2. MENÚ VER MIS TAREAS
-// ==========================================
 function menuVerMisTareas(): void {
   console.clear();
   console.log("====================================");
@@ -99,21 +63,11 @@ function menuVerMisTareas(): void {
   const opcion = pedirTexto("> Selecciona una opción: ");
 
   switch (opcion.trim()) {
-    case "1":
-      listarTareas(tareas, "Todas las tareas");
-      break;
-    case "2":
-      listarTareas(tareas.filter(t => t.estado === EstadoTarea.PENDIENTE), "Tareas Pendientes");
-      break;
-    case "3":
-      listarTareas(tareas.filter(t => t.estado === EstadoTarea.EN_CURSO), "Tareas En Curso");
-      break;
-    case "4":
-      listarTareas(tareas.filter(t => t.estado === EstadoTarea.TERMINADA), "Tareas Terminadas");
-      break;
-    case "0":
-      menuPrincipal();
-      break;
+    case "1": listarTareas(obtenerTodasLasTareas(), "Todas las tareas"); break;
+    case "2": listarTareas(obtenerTareasPorEstado(EstadoTarea.PENDIENTE), "Tareas Pendientes"); break;
+    case "3": listarTareas(obtenerTareasPorEstado(EstadoTarea.EN_CURSO), "Tareas En Curso"); break;
+    case "4": listarTareas(obtenerTareasPorEstado(EstadoTarea.TERMINADA), "Tareas Terminadas"); break;
+    case "0": menuPrincipal(); break;
     default:
       pedirTexto("\n❌ Opción inválida. Presiona ENTER para intentar nuevamente.");
       menuVerMisTareas();
@@ -121,9 +75,6 @@ function menuVerMisTareas(): void {
   }
 }
 
-// ==========================================
-// 3. LISTADO DE TAREAS Y VER DETALLE
-// ==========================================
 function listarTareas(lista: Tarea[], tituloSeccion: string): void {
   console.clear();
   console.log(`====================================`);
@@ -134,7 +85,6 @@ function listarTareas(lista: Tarea[], tituloSeccion: string): void {
     console.log("\nNo se encontraron tareas en esta categoría.");
   } else {
     const ordenadas = [...lista].sort((a, b) => b.creacion.getTime() - a.creacion.getTime());
-    
     ordenadas.forEach((tarea) => {
       console.log(`[${tarea.id}] ${tarea.titulo} - (${tarea.estado})`);
     });
@@ -152,7 +102,7 @@ function listarTareas(lista: Tarea[], tituloSeccion: string): void {
     return;
   }
 
-  const tareaEncontrada = lista.find(t => t.id === idSeleccionado);
+  const tareaEncontrada = obtenerTareaPorId(idSeleccionado);
 
   if (tareaEncontrada) {
     verDetalleTarea(tareaEncontrada);
@@ -176,13 +126,38 @@ function verDetalleTarea(tarea: Tarea): void {
   console.log(`Última Edición:${tarea.ultimaEdicion.toLocaleString()}`);
   console.log(`Vencimiento:   ${tarea.vencimiento ? tarea.vencimiento.toLocaleDateString() : "(Sin vencimiento)"}`);
   console.log("------------------------------------");
+  
+  const respuesta = pedirTexto("\n¿Deseas cambiar el estado de esta tarea? [S/N]: ")
+  const quiereCambiarEstado: boolean = respuesta === "s" || respuesta === "si" || respuesta === "sí";
+  
+  if(quiereCambiarEstado){
+    console.log("\nSelecciona el nuevo estado: ");
+    console.log("\n[1]Pendiente");
+    console.log("\n[2]En curso");
+    console.log("\n[3]Terminada");
+    console.log("\n[4]Cancelada");
 
+    const opcionEstado = pedirTexto("> Estado (1-4): ").trim()
+    let nuevoEstado: EstadoTarea | null = null
+
+    switch (opcionEstado) {
+      case "1": nuevoEstado = EstadoTarea.PENDIENTE; break;
+      case "2": nuevoEstado = EstadoTarea.EN_CURSO; break;
+      case "3": nuevoEstado = EstadoTarea.TERMINADA; break;
+      case "4": nuevoEstado = EstadoTarea.CANCELADA; break;
+      default:
+        pedirTexto("\n Opcion no valida. No se modifico el estado. Preciona ENTER.");
+    }
+    if (nuevoEstado) {
+      cambiarEstadoTarea(tarea.id, nuevoEstado);
+      pedirTexto(`\n Estado actualizado a " ${nuevoEstado} " con exito. Presiona Enter`);
+    }
+  } 
+  else{
   pedirTexto("\nPresiona ENTER para volver al listado.");
+  }
 }
 
-// ==========================================
-// MÉTODOS DE SOPORTE
-// ==========================================
 function agregarTarea(): void {
   console.clear();
   console.log("====================================");
@@ -206,19 +181,8 @@ function agregarTarea(): void {
   if (difInput.trim() === "2") dificultad = DificultadTarea.MEDIO;
   if (difInput.trim() === "3") dificultad = DificultadTarea.DIFÍCIL;
 
-  const fechaActual = new Date();
+  crearTarea(titulo, descripcion, dificultad);
 
-  const nuevaTarea: Tarea = {
-    id: proximoId++,
-    titulo,
-    descripcion: descripcion || undefined,
-    estado: EstadoTarea.PENDIENTE,
-    creacion: fechaActual,
-    ultimaEdicion: fechaActual,
-    dificultad
-  };
-
-  tareas.push(nuevaTarea);
   pedirTexto("\n✅ Tarea creada con éxito. Presiona ENTER para continuar.");
   menuPrincipal();
 }
@@ -230,12 +194,10 @@ function menuBuscarTarea(): void {
   console.log("====================================");
 
   const busqueda = pedirTexto("Ingresa el título o parte del título a buscar: ");
-  const resultados = tareas.filter(t => 
-    t.titulo.toLowerCase().includes(busqueda.toLowerCase())
-  );
+  const resultados = buscarTareasPorTitulo(busqueda);
 
   listarTareas(resultados, `Resultados para: "${busqueda}"`);
 }
 
-// Inicio del programa
+// Arrancar la aplicación
 menuPrincipal();
